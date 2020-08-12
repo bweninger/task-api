@@ -4,19 +4,22 @@ const Task = require('../../models/task');
 const formatTask = task => {
   return {
     _id: task._id.toString(),
+    summary: task.summary,
+    isCompleted: task.isCompleted,
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString()
   };
 };
 
-const validateInput = (summary, isCompleted = null) => {
+const validateInput = (summary, isCompleted) => {
   const errors = [];
-  if (validator.isEmpty(summary) || !validator.isLength(summary, { min: 10, max: 150 })) {
+
+  if (typeof summary == 'string' && !validator.isLength(summary, { min: 10, max: 150 })) {
     errors.push({
-      message: `Summary does not fulfull the length requirements (10-150 characters): ${summary}`
+      message: `Summary does not fulfill the length requirements (10-150 characters): ${summary}`
     });
   }
-  if (isCompleted !== null && !validator.isBoolean(isCompleted.toString())) {
+  if (isCompleted && !validator.isBoolean(isCompleted.toString())) {
     errors.push({ message: `isCompleted has to be a boolean, instead got ${isCompleted}` });
   }
   if (errors.length > 0) {
@@ -27,22 +30,19 @@ const validateInput = (summary, isCompleted = null) => {
   }
 };
 
-const getTask = async id => {
-  const task = await Task.findById(id);
-
+const validateTaskExists = (task) => {
   if (!task) {
     const error = new Error('Task not found!');
     error.code = 404;
     throw error;
   }
-  return task;
-};
+}
 
 module.exports = {
   tasks: async ({ excludeCompleted }) => {
     let rawTasks;
     if (excludeCompleted) {
-      rawTasks = await Task.find({ isCompleted: true }).sort({ createdAt: -1 });
+      rawTasks = await Task.find({ isCompleted: false }).sort({ createdAt: -1 });
     } else {
       rawTasks = await Task.find().sort({ createdAt: -1 });
     }
@@ -58,7 +58,8 @@ module.exports = {
   },
 
   task: async ({ id }) => {
-    const task = await getTask(id);
+    const task = await Task.findById(id);
+    validateTaskExists(task)
     return formatTask(task);
   },
 
@@ -77,21 +78,20 @@ module.exports = {
   },
 
   updateTask: async ({ id, taskUpdate }) => {
-    const summary = taskUpdate.summary;
-    const isCompleted = taskUpdate.isCompleted;
-    validateInput(summary, isCompleted);
+    validateInput(taskUpdate.summary, taskUpdate.isCompleted);
+    const task = await Task.findById(id);
 
-    const task = await getTask(id);
+    validateTaskExists(task);
 
-    task.summary = summary;
-    task.isCompleted = task.isCompleted;
-    const updateTask = task.save();
+    task.summary = taskUpdate.summary ?? task.summary;
+    task.isCompleted = taskUpdate.isCompleted ?? task.isCompleted;
+    const updateTask = await task.save();
     return formatTask(updateTask);
   },
 
   deleteTask: async ({ id }) => {
-    await getTask(id);
-    await Task.findByIdAndRemove(id);
+    const task = await Task.findByIdAndRemove(id);
+    validateTaskExists(task)
     return true;
   }
 };

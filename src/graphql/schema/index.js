@@ -26,7 +26,7 @@ module.exports = graphql.buildSchema(`
   }
 
   input TaskUpdateData {
-    summary: String!
-    isCompleted: Boolean!
+    summary: String
+    isCompleted: Boolean
   }
 `);
